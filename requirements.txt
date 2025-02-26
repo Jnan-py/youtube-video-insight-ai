@@ -1,0 +1,6 @@
+streamlit
+python-dotenv
+google-generativeai
+streamlit-option-menu
+yt-dlp
+numpy
