@@ -51,6 +51,7 @@ def transcribe_video(video_id):
 
     except:
         try:
+            transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
             transcript = transcript_list.find_transcript([t.language_code for t in transcript_list])
             translated = transcript.translate('en').fetch()
             return {
@@ -60,7 +61,7 @@ def transcribe_video(video_id):
             }
 
         except Exception as e:
-            st.error(f"Transcript error: {str(e)}")
+            st.error(f"The Transcript is not available for the given Video")
             return None
 
 def analyze_with_vision(my_file):
@@ -171,36 +172,40 @@ with st.sidebar:
             )
         
         if st.button("Process Video"):
-            with st.spinner("Analyzing video..."):
-                if analysis_type == "Knowledge Analytics":
-                    st.session_state.transcript = transcribe_video(video_id)
-                    if st.session_state.transcript:
-                        prompt = f"""Analyze this transcript for knowledge content. Return JSON with:
-                        {{
-                            "video_type": string,
-                            "custom_prompt": string,
-                            "audience_options": array of strings
-                        }}
-                        Transcript: {st.session_state.transcript['translated']}
-                        """
-                        response = content_model.generate_content(prompt)
-                        st.session_state.analysis = parse_gemini_response(response.text)
-                
-                elif analysis_type == "Entertainment Analytics":
-                    st.session_state.transcript = transcribe_video(video_id)
-                    video_path = dwl_vid(video_url)
+            try:
+                with st.spinner("Analyzing video..."):
+                    if analysis_type == "Knowledge Analytics":
+                        st.session_state.transcript = transcribe_video(video_id)
+                        if st.session_state.transcript:
+                            prompt = f"""Analyze this transcript for knowledge content. Return JSON with:
+                            {{
+                                "video_type": string,
+                                "custom_prompt": string,
+                                "audience_options": array of strings
+                            }}
+                            Transcript: {st.session_state.transcript['translated']}
+                            """
+                            response = content_model.generate_content(prompt)
+                            st.session_state.analysis = parse_gemini_response(response.text)
+                    
+                    elif analysis_type == "Entertainment Analytics":
+                        st.session_state.transcript = transcribe_video(video_id)
+                        video_path = dwl_vid(video_url)
 
-                    if video_path:
-                        my_file = genai.upload_file(video_path)
-                        if my_file.state.name == "FAILED":
-                            print("Re-uploading the file...")
+                        if video_path:
                             my_file = genai.upload_file(video_path)
+                            if my_file.state.name == "FAILED":
+                                print("Re-uploading the file...")
+                                my_file = genai.upload_file(video_path)
 
-                        if not wait_for_file_active(my_file):
-                            st.stop()
+                            if not wait_for_file_active(my_file):
+                                st.stop()
 
-                        st.session_state.analysis = analyze_with_vision(my_file)
-                        os.remove(video_path)  
+                            st.session_state.analysis = analyze_with_vision(my_file)
+                            os.remove(video_path)  
+            
+            except Exception as e:
+                st.info("Please upload a Video")
                         
 
 if st.session_state.analysis and 'audience_options' in st.session_state.analysis:
